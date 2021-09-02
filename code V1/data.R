@@ -25,43 +25,21 @@ setwd(wrkn_dir)
 
 
 #ABG 1  ------------------------------------------------------------
-#xmin, ymin, xmax, ymax
-# bounding_box = c(14.417656249999986, -13.411444700107198,
-#                   30.413749999999986,  -0.7914537537262674)
-bounding_box = c(16.35018, -12.70012,
-                 31.03487,  -4.779805)
-
 
 files <- list.files(path = paste0(wrkn_dir, '/biomass sample/'), 
                     recursive = FALSE, pattern = "\\.tif$")
 abg <- stack(paste0(wrkn_dir, '/biomass sample/', files))
-files <- list.files(path = paste0(wrkn_dir, '/january/'), 
+
+files <- list.files(path = paste0(wrkn_dir, '/feb/'), 
                     recursive = FALSE, pattern = "\\.tif$")
-s <- stack(paste0(wrkn_dir, '/january/', files))
+s <- stack(paste0(wrkn_dir, '/feb/', files))
 
+#project to use lat and lon 
 abg <- projectRaster(abg$Mg,crs = crs(s[[1]]))
-# xmax(abg) <- 30
-# xmin(abg) <- 10
-# ymin(abg) <- -8
-# ymax(abg) <- 6
-
-# comented ----------------------------------------------------------------
-
-
-# Convert raster to SpatialPointsDataFrame
-# df <- rasterToPoints(abg, spatial=TRUE)
-# proj4string(df)
-# to lat/lon
-# llprj <-  "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs +towgs84=0,0,0"
-# llpts <- spTransform(df, CRS(llprj))
-# abg1 <- raster(llpts)
-
-
 
 # covariates --------------------------------------------------------------
-#january files 
+#january data 
 
-# processed_stacks <- NULL
 #stack 
 pstacks <- stack(abg)
 for(i in 1:length(names(s))){
@@ -77,19 +55,57 @@ for(i in 1:length(names(s))){
   print('processed')
 }
 
+# save the raster layers
+for(i in 1:length(names(s))+1){
+  fname <-  paste0(wrkn_dir, '/processed_data/',names(pstacks[[i]]),'.tif')
+  writeRaster(pstacks[[i]], filename=fname, 
+            options="INTERLEAVE=BAND", overwrite=TRUE)
+}
 df <- as.data.frame(pstacks,xy=T, na.rm=T)
+save(df, file = paste0(wrkn_dir, '/processed_data/dataset.RData'))
+ls(rm())
+
+# Plot the data & measure correlation ----------------------------------------------------------
+
+
 plot(pstacks[[1]])
+df <- rasterToPoints(pstacks, spatial=TRUE)
 
-# Plot the data  ----------------------------------------------------------
+'functions to measure the sapatial autocrealtion, plot variograms 
+and general data exploration'
+explore_sample <- function(){}
 
-valuetable <- na.omit(as.data.frame(df))
-coordinates(valuetable) <- ~x+y
+# sampling ---------------------------------------------------------
 
-plot(headvaluetable, add=T)
+set.seed(123) 
+#random sampling 
+randomsample <- function(sp_data, sp_size){
+  r_sample <- spsample(sp_data,n=sp_size, type ='random')
+  valuetable <- na.omit(as.data.frame(r_sample))
+  coordinates(valuetable) <- ~x+y
+  plot(abg[[1]])
+  plot(valuetable, add=T)
+  return(r_sample)
+}
+# different sample sizes 
+randomsample(df,400)
 
+# claster sampling 
+# 
 
-abg <- stack(paste0(wrkn_dir, '/imageToDriveExample (1).tif'))
-plot(abg[[1]])
+# Machine learning models -------------------------------------------------
 
-df <- as.data.frame(abg)
+# cross validation --------------------------------------------------------
+
+k_fold_cv <- function(){
+  # spliting the data 
+  # plot to show training and test set
+  #calculate errors
+}
+
+spatial_k_fold_cv <- function(){
+  # spliting the data 
+  # plot to show training and test set
+  # calculate errors
+}
 

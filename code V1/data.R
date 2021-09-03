@@ -107,7 +107,7 @@ randomsample <- function(sp_data, sp_size){
 # different sample sizes 
 randomsample(df,100)
 
-# claster sampling 
+# cluster sampling 
 # 
 
 # Machine learning models -------------------------------------------------

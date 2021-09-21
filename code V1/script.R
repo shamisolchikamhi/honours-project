@@ -38,6 +38,7 @@ pstacks[is.na(pstacks[])] <- 0
 df <- rasterToPoints(pstacks, spatial=TRUE)
 df <- as.data.frame(df)
 df <- df[rowSums(df[,1:9])>0,]
+
 sp_df <- df
 coordinates(sp_df) <- ~x+y 
 
@@ -56,6 +57,7 @@ rasterPlot <- function(r_layer){
 }
 rasterPlot(pstacks$ABG)
 
+
 # ESDA --------------------------------------------------------------------
 
 
@@ -73,6 +75,7 @@ plot(lzn.vgm)
 # Value chosen for distance used to spatila cv
 dist_v <- 3
 
+explore_sample <- function(){}
 
 # sampling ---------------------------------------------------------
 
@@ -82,15 +85,17 @@ randomsample <- function(sp_data, sp_size, plt = FALSE){
   # r_sample <- spsample(sp_data,n=sp_size, type ='clustered')
   r_sample <- sample(nrow(sp_data), sp_size )
   r_sample <- df[r_sample,]
+
   if(plt){
   valuetable <- na.omit(as.data.frame(r_sample))
   coordinates(valuetable) <- ~x+y
   plot(pstacks[[1]])
   plot(valuetable, add=T, pch = 20, cex = 0.8)}
-  
+
   return(r_sample)
   
 }
+
 
 
 # cluster sampling --------------------------------------------------------
@@ -173,6 +178,7 @@ rf_model <- function(data, ntree = 100, mtry = 8,nodesize =2, maxnodes= 100){
 #   # calculate errors
 # }
 # 
+
 # block_cv <- function(){
 #   
 y <- raster::extract(d, ABG, D = TRUE)
@@ -191,6 +197,7 @@ spat_bl <- spatialBlock(speciesData = st_as_sf(rasterToPoints(pstacks$ABG, spati
                         yOffset = 0,
                         seed = 123)
 
+
 #   
 #   ##                      Visualization Tools:
 #   foldExplorer(blocks = spat_bl, 
@@ -201,6 +208,7 @@ spat_bl <- spatialBlock(speciesData = st_as_sf(rasterToPoints(pstacks$ABG, spati
 #   rangeExplorer(rasterLayer = abg) 
 #   
 # }
+
 
 
 
@@ -240,6 +248,7 @@ s_sizes <- c(100, 500, 1000, 5000)
 k = 10
 for (samp in s_sizes){
   
+
   d = randomsample(df,samp)
   
   flds <- createFolds(1:length((d$ABG)), k = k, list = TRUE, returnTrain = FALSE)
@@ -259,6 +268,7 @@ for (samp in s_sizes){
     
     
     rf <- rf_model(train_set)
+    
     abg_pred <- predict(rf, newdata = test_set[,!(colnames(test_set) == "ABG")])
     
     # store 
@@ -314,6 +324,7 @@ plot(d,col=as.factor(d$cluster),add=T,pch = 20)
 
 # rasterPlot(pstacks$ABG)
 # plot(d,col=as.factor(d$cluster),add=T,pch = 20)
+
 
 
 

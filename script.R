@@ -81,7 +81,7 @@ randomsample <- function(sp_data, sp_size, plt = FALSE){
 
 xx <- rasterToPoints(pstacks$ABG, spatial=TRUE)
 
-biomass_signature = lsp_signature(st_as_stars(xx),type = "incove",window = 300)
+biomass_signature = lsp_signature(st_as_stars(xx),type = "incove",window = 900)
 #getDistMethods()
 #st_dimensions
 biomass_dist = lsp_to_dist(biomass_signature)
@@ -154,7 +154,9 @@ rf_model <- function(data, ntree = 100, mtry = 8,nodesize =2, maxnodes= 100){
 # 
 
 # block_cv <- function(){
-#   
+
+#                     BLOCKING STRATEGIES
+# spatial blocking  
   y <- raster::extract(d, ABG, D = TRUE)
   b_sizse <- spatialAutoRange(pstacks, doParallel = TRUE, showPlots = TRUE, degMetre = 111325, maxpixels = 1e+05, plotVariograms = TRUE, progress = TRUE)
   block_range <- b_sizse$range
@@ -170,17 +172,46 @@ rf_model <- function(data, ntree = 100, mtry = 8,nodesize =2, maxnodes= 100){
                           xOffset = 0, # shift the blocks horizontally
                           yOffset = 0,
                           seed = 123)
+  
+  
+#Buffering: Generates spatially separated train and test folds by considering buffers of the specified distance around each observation point.
+bf1 <- buffering(speciesdata = st_as_sf(rasterToPoints(pstacks$ABG, spatial = TRUE)),
+                 species = "Species",
+                 theRAnge = block_range,
+                 spDataType = "PB",
+                 addBG = TRUE,
+                 progress = TRUE)
 
- #   
-#   ##                      Visualization Tools:
-#   foldExplorer(blocks = spat_bl, 
-#                rasterLayer = abg, 
-#                speciesData = df$ABG1)
-#   
-#   # explore the block size
-#   rangeExplorer(rasterLayer = abg) 
-#   
-# }
+#Environmental Blocking
+# Environmental blocking for cross-validation. This function uses clustering methods to specify sets
+# of similar environmental conditions based on the input covariates. Species data corresponding to
+# any of these groups or clusters are assigned to a fold. This function does the clustering in raster
+# space and species data. Clustering is done using kmeans for both approaches. This function works
+# on single or multiple raster files; multiple rasters need to be in a raster brick or stack format.
+
+envBlock(
+  rasterLayer = pstacks,
+  speciesData = st_as_sf(rasterToPoints(pstacks$ABG, spatial = TRUE)),
+  species = NULL, #null beacue response variable is continuous.
+  k = 5,
+  standardization = "normal",
+  rasterBlock = TRUE,
+  sampleNumber = 10000,
+  biomod2Format = TRUE,
+  numLimit = 0,
+  verbose = TRUE
+)
+
+
+  ##                      Visualization Tools:
+  foldExplorer(blocks = spat_bl,
+               rasterLayer = pstacks,
+               speciesData = st_as_sf(rasterToPoints(pstacks$ABG, spatial = TRUE)))
+
+  # explore the block size
+  rangeExplorer(rasterLayer = pstacks)
+
+
 
 
 # cv ----------------------------------------------------------------------

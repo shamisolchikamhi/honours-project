@@ -1,3 +1,4 @@
+
 # packages ----------------------------------------------------------------
 require(geoR)
 require(caret)
@@ -83,37 +84,39 @@ randomsample <- function(sp_data, sp_size, plt = FALSE){
   r_rows <- sample(nrow(sp_data), sp_size )
   r_sample <- sp_data[r_rows,]
   if(plt){
-  valuetable <- as.data.frame(r_sample)
-  coordinates(valuetable) <- ~x+y
-  plot(pstacks[[1]], col = paletteGoogleEE)
-  plot(valuetable, add=T, pch = 20, cex = 0.6)}
+    valuetable <- as.data.frame(r_sample)
+    coordinates(valuetable) <- ~x+y
+    plot(pstacks[[1]], col = paletteGoogleEE)
+    plot(valuetable, add=T, pch = 20, cex = 0.6)}
   
   return(r_sample)
 }
 # claster samples
 clusterSample <- function(data,esp_value=0.15,min_pts = 10, plt = F){
-d.scale <- scale(data)
-db <- fpc::dbscan(d.scale[,c('x','y','ABG')], eps = esp_value, MinPts =min_pts)
-data$clusters <- db$cluster
-if (plt){
-  # Plot DBSCAN results 
-  d <- data
-  coordinates(d) <- ~x+y
-  plot(pstacks[[1]], col = paletteGoogleEE)
-  plot(d,col=as.factor(d$clusters),add=T,pch = 20, cex = 0.6, legend =T)
-}
-return(data)
+  d.scale <- scale(data)
+  db <- fpc::dbscan(d.scale[,c('x','y','ABG')], eps = esp_value, MinPts =min_pts)
+  data$clusters <- db$cluster
+  if (plt){
+    # Plot DBSCAN results 
+    d <- data
+    coordinates(d) <- ~x+y
+    plot(pstacks[[1]], col = paletteGoogleEE)
+    plot(d,col=as.factor(d$clusters),add=T,pch = 20, cex = 0.6, legend =T)
+  }
+  return(data)
 }
 
+
+# Block (for cross validatio) ---------------------------------------------
 
 # spatial blocking  
-y <- raster::extract(d, ABG, D = TRUE)
-b_sizse <- spatialAutoRange(pstacks, doParallel = TRUE, showPlots = TRUE, degMetre = 111325, maxpixels = 1e+05, plotVariograms = TRUE, progress = TRUE)
+# y <- raster::extract(d, ABG, D = TRUE)
+b_sizse <- spatialAutoRange(pstacks$ABG, doParallel = TRUE, showPlots = TRUE, degMetre = 111325, maxpixels = 1e+05, plotVariograms = TRUE, progress = TRUE)
 block_range <- b_sizse$range
 spat_bl <- spatialBlock(speciesData = st_as_sf(rasterToPoints(pstacks$ABG, spatial = TRUE)),
                         #as(pstacks$ABG,'spatial'),
                         species = NULL,
-                        rasterLayer = pstacks,
+                        rasterLayer = pstacks$ABG,
                         theRange = block_range, # size of the blocks
                         k = 10, #number of folds
                         selection = "random",
@@ -122,7 +125,7 @@ spat_bl <- spatialBlock(speciesData = st_as_sf(rasterToPoints(pstacks$ABG, spati
                         xOffset = 0, # shift the blocks horizontally
                         yOffset = 0,
                         seed = 123)
-
+#re work
 bf1 <- buffering(speciesdata = st_as_sf(rasterToPoints(pstacks$ABG, spatial = TRUE)),
                  species = 'Species',
                  theRange = block_range,
@@ -205,7 +208,7 @@ errors <- function(sample_obs, pred){
   
   # Pearson's correlation squared
   r2 <-  (cor(pred, sample_obs, method = 'spearman', 
-                    use = 'pairwise.complete.obs')^2)
+              use = 'pairwise.complete.obs')^2)
   
   # coefficient of determination - 'MEC' - 'AVE'
   SSE <- sum((pred - sample_obs) ^ 2, na.rm = T)
@@ -275,11 +278,11 @@ for (samp in s_sizes){
 ##### random forest with cluster sampling #####  
 
 cl_data = clusterSample(randomsample(df,10000,plt = T),esp_value = 0.15,
-                  min_pts = 10, plt = T)
+                        min_pts = 10, plt = T)
 clusters = unique(cl_data$clusters)
 ncl <- c(20,40,60)
 for (cl in ncl){
-
+  
   d = cl_data[cl_data$clusters %in% sample(clusters,cl,replace = F),]
   
   valuetable <- d
@@ -334,4 +337,5 @@ for (cl in ncl){
                                              RMSE, r2, MEC)
   
 }
+
 

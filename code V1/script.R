@@ -105,6 +105,44 @@ if (plt){
 return(data)
 }
 
+
+# spatial blocking  
+y <- raster::extract(d, ABG, D = TRUE)
+b_sizse <- spatialAutoRange(pstacks, doParallel = TRUE, showPlots = TRUE, degMetre = 111325, maxpixels = 1e+05, plotVariograms = TRUE, progress = TRUE)
+block_range <- b_sizse$range
+spat_bl <- spatialBlock(speciesData = st_as_sf(rasterToPoints(pstacks$ABG, spatial = TRUE)),
+                        #as(pstacks$ABG,'spatial'),
+                        species = NULL,
+                        rasterLayer = pstacks,
+                        theRange = block_range, # size of the blocks
+                        k = 10, #number of folds
+                        selection = "random",
+                        iteration = 100, # find evenly dispersed folds
+                        biomod2Format = TRUE,
+                        xOffset = 0, # shift the blocks horizontally
+                        yOffset = 0,
+                        seed = 123)
+
+bf1 <- buffering(speciesdata = st_as_sf(rasterToPoints(pstacks$ABG, spatial = TRUE)),
+                 species = 'Species',
+                 theRange = block_range,
+                 spDataType = "PB",
+                 addBG = TRUE,
+                 progress = TRUE)
+envBlock(
+  rasterLayer = pstacks,
+  speciesData = st_as_sf(rasterToPoints(pstacks$ABG, spatial = TRUE)),
+  species = NULL, #null beacue response variable is continuous.
+  k = 5,
+  standardization = "normal",
+  rasterBlock = TRUE,
+  sampleNumber = 10000,
+  biomod2Format = TRUE,
+  numLimit = 0,
+  verbose = TRUE
+)
+
+
 # Machine learning models -------------------------------------------------
 
 #random forest

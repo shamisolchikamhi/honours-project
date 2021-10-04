@@ -105,6 +105,7 @@ if (plt){
 return(data)
 }
 
+
 # spatial blocking  
 y <- raster::extract(d, ABG, D = TRUE)
 b_sizse <- spatialAutoRange(pstacks, doParallel = TRUE, showPlots = TRUE, degMetre = 111325, maxpixels = 1e+05, plotVariograms = TRUE, progress = TRUE)
@@ -140,6 +141,7 @@ envBlock(
   numLimit = 0,
   verbose = TRUE
 )
+
 
 # Machine learning models -------------------------------------------------
 

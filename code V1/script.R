@@ -1,4 +1,3 @@
-
 # packages ----------------------------------------------------------------
 require(geoR)
 require(caret)
@@ -26,11 +25,11 @@ library(dplyr)
 library(readr)
 library(blockCV)
 require(caret)
-
+library(tree)
 
 # Plot the data & measure correlation ----------------------------------------------------------
 # upload data
-
+# set.seed(7784)
 # plot 
 wrkn_dir <- dirname(rstudioapi::getActiveDocumentContext()$path)
 setwd(wrkn_dir)
@@ -107,14 +106,20 @@ clusterSample <- function(data,esp_value=0.15,min_pts = 10, plt = F){
 }
 
 
-# Block (for cross validatio) ---------------------------------------------
+# Block (for cross validation) ---------------------------------------------
 
-# spatial blocking  
-# y <- raster::extract(d, ABG, D = TRUE)
-b_sizse <- spatialAutoRange(pstacks$ABG, doParallel = TRUE, showPlots = TRUE, degMetre = 111325, maxpixels = 1e+05, plotVariograms = TRUE, progress = TRUE)
+# spatial blocking 
+
+rs <- d
+coordinates(rs) <- ~ x + y
+gridded(rs) <- TRUE
+rs <- raster(rs)
+rs <-resample(rs,pstacks$ABG,method = 'bilinear')
+b_sizse <- spatialAutoRange(rs, doParallel = TRUE, showPlots = F, 
+                            degMetre = 111325, maxpixels = 1e+05, 
+                            plotVariograms = TRUE, progress = TRUE,sampleNumber = 2000)
 block_range <- b_sizse$range
-spat_bl <- spatialBlock(speciesData = st_as_sf(rasterToPoints(pstacks$ABG, spatial = TRUE)),
-                        #as(pstacks$ABG,'spatial'),
+spat_bl <- spatialBlock(speciesData = st_as_sf(rasterToPoints(rs, spatial = TRUE)),
                         species = NULL,
                         rasterLayer = pstacks$ABG,
                         theRange = block_range, # size of the blocks
@@ -125,26 +130,7 @@ spat_bl <- spatialBlock(speciesData = st_as_sf(rasterToPoints(pstacks$ABG, spati
                         xOffset = 0, # shift the blocks horizontally
                         yOffset = 0,
                         seed = 123)
-#re work
-bf1 <- buffering(speciesdata = st_as_sf(rasterToPoints(pstacks$ABG, spatial = TRUE)),
-                 species = 'Species',
-                 theRange = block_range,
-                 spDataType = "PB",
-                 addBG = TRUE,
-                 progress = TRUE)
-envBlock(
-  rasterLayer = pstacks,
-  speciesData = st_as_sf(rasterToPoints(pstacks$ABG, spatial = TRUE)),
-  species = NULL, #null beacue response variable is continuous.
-  k = 5,
-  standardization = "normal",
-  rasterBlock = TRUE,
-  sampleNumber = 10000,
-  biomod2Format = TRUE,
-  numLimit = 0,
-  verbose = TRUE
-)
-
+spat_bl$folds
 
 # Machine learning models -------------------------------------------------
 
@@ -172,7 +158,7 @@ rf_hyperpaarmeter <- function(data ){
   return(which(rf$mse == min(rf$mse))) #number of trees
   
 }
-num_of_trees = rf_hyperpaarmeter(df)
+num_of_trees = rf_hyperpaarmeter(randomsample(df, 2000))
 
 rf_model <- function(data, ntree = 100, mtry = 8,nodesize =2, maxnodes= 100){
   rf <- randomForest(ABG ~ clay_content + elevation + precipitation + 
@@ -185,23 +171,47 @@ rf_model <- function(data, ntree = 100, mtry = 8,nodesize =2, maxnodes= 100){
 
 
 #decision trees
+mincut=5
+minsize = 10 
+mindev = 0.003
 
-# XGB
+dt_dat = randomsample(df, 2000)
+stopcrit <- tree.control(nobs=nrow(dt_dat), mincut = mincut, 
+                         minsize = minsize , mindev = mindev)
+tree1 <- tree(ABG ~ ., data = dt_dat, control = stopcrit)
+# Cost complexity pruning through CV
+cv_bigtree <- cv.tree(tree1,K = 10)
 
-#linear regression 
+plot(cv_bigtree$size, cv_bigtree$dev, type = 'b', pch = 16,
+   xlab = 'Number of terminal nodes', ylab = 'CV error')
+axis(side = 1, at = 1:max(cv_bigtree$size))
+
+
+dt_model <- function(data,  mincut = 5, minsize = 10 , 
+                     mindev = 0.003, treecut= 15){
+  
+  stopcrit <- tree.control(nobs=nrow(data), mincut = mincut, 
+                           minsize = minsize , mindev = mindev)
+  tree1 <- tree(ABG ~ ., data = data,  control = stopcrit)
+  pruned_tree <- prune.tree(tree1, best = treecut)
+  plot(pruned_tree)
+  text(pruned_tree, cex=0.8)
+  return(pruned_tree)
+}
+
 
 # cv output storage --------------------------------------------------------
 ## prepare output table
-rand_samp_cv <- data.frame(sample_size = NA,ME = NA,RMSE = NA,r2 = NA,MEC = NA)
-rand_samp_scv <- data.frame(sample_size = NA,ME = NA,RMSE = NA,r2 = NA,MEC = NA)
-clus_samp_cv <- data.frame(nclusters = NA,ME = NA,RMSE = NA,r2 = NA,MEC = NA)
-clus_samp_scv <- data.frame(nclusters = NA,ME = NA,RMSE = NA,r2 = NA,MEC = NA)
+rand_samp_cv <- data.frame(model = NA, sample_size = NA,ME = NA,RMSE = NA,r2 = NA,MEC = NA)
+rand_samp_scv <- data.frame(model = NA, sample_size = NA,ME = NA,RMSE = NA,r2 = NA,MEC = NA)
+clus_samp_cv <- data.frame(model = NA, nclusters = NA,ME = NA,RMSE = NA,r2 = NA,MEC = NA)
+clus_samp_scv <- data.frame(model = NA, nclusters = NA,ME = NA,RMSE = NA,r2 = NA,MEC = NA)
 
 # evaluations metrics -----------------------------------------------------
 errors <- function(sample_obs, pred){
   
-  # mean error
-  ME <- mean(pred - sample_obs, na.rm = TRUE)
+  # mean absolute error
+  ME <- mean(abs(pred - sample_obs), na.rm = TRUE)
   
   # root mean square error
   RMSE <-   sqrt(mean((pred - sample_obs)^2, na.rm = TRUE))
@@ -222,11 +232,13 @@ errors <- function(sample_obs, pred){
 # conventional cross validation ----------------------------------------------------------------------
 k = 10
 ##### random forest with random sampling #### 
-s_sizes <- c(1000)
+s_sizes <- c(1000,2000)
+random_sampling_data_cv = NULL
+random_sampling_data_scv = NULL
 for (samp in s_sizes){
   
   d = randomsample(df,samp,plt = TRUE)
-  
+  row.names(d) <- 1:nrow(d)
   flds <- createFolds(1:length((d$ABG)), k = k, list = TRUE, returnTrain = FALSE)
   for(i in 1:k){
     test_set <- d[flds[[i]],]
@@ -249,7 +261,8 @@ for (samp in s_sizes){
     # store 
     
     pred_test <- data.frame(x=test_set$x,y=test_set$y ,ABG =test_set$ABG, 
-                            predictions = abg_pred, fold = i )
+                            predictions = abg_pred, fold = i, 
+                            model = 'random forest', samp_size =samp )
     if(i == 1){
       k_fold_pred_test = pred_test
     }
@@ -261,7 +274,57 @@ for (samp in s_sizes){
   plot(k_fold_pred_test$ABG, k_fold_pred_test$predictions, pch=19, 
        xlab="Observed ABG (in Mg/ha)", ylab="Predicted ABG (in Mg/ha)", 
        main= paste("Random K-fold CV (sample size:",samp,')'))
-  errors(k_fold_pred_test$ABG, k_fold_pred_test$predictions)
+  abline(0,1)
+  
+  
+  sample_size = samp
+  ME <-  errors(k_fold_pred_test$ABG, k_fold_pred_test$predictions)$ME
+  RMSE <- errors(k_fold_pred_test$ABG, k_fold_pred_test$predictions)$RMSE
+  r2 <-   errors(k_fold_pred_test$ABG, k_fold_pred_test$predictions)$r2
+  MEC <-   errors(k_fold_pred_test$ABG, k_fold_pred_test$predictions)$MEC
+  
+  rand_samp_cv[nrow(rand_samp_cv) + 1,] <- c(model= 'random forest',sample_size= sample_size, ME,
+                                             RMSE, r2, MEC)
+  
+  
+  random_sampling_data_cv <- rbind(random_sampling_data_cv, k_fold_pred_test)
+  
+  remove(k_fold_pred_test)
+  for(i in 1:k){
+    test_set <- d[flds[[i]],]
+    t <- c(1:k)[-i]
+    train_set <- d[unlist(flds[t]),]
+    
+    valuetable_test <- na.omit(as.data.frame(test_set))
+    valuetable_train <- na.omit(as.data.frame(train_set))
+    coordinates(valuetable_test) <- ~x+y
+    coordinates(valuetable_train) <- ~x+y
+    
+    plot(pstacks[[1]], col = paletteGoogleEE)
+    plot(valuetable_train, add=T, col ='red', pch = 20, cex= 0.7)
+    plot(valuetable_test, add=T, col ='blue',pch = 20, cex= 0.7)
+    
+    
+    dt <- dt_model(train_set)
+    abg_pred <- predict(dt, newdata = test_set[,!(colnames(test_set) == "ABG")])
+    
+    # store 
+    
+    pred_test <- data.frame(x=test_set$x,y=test_set$y ,ABG =test_set$ABG, 
+                            predictions = abg_pred, fold = i, model = 'decision tree' 
+                            ,samp_size =samp)
+    if(i == 1){
+      k_fold_pred_test = pred_test
+    }
+    if(i > 1){
+      k_fold_pred_test = rbind(k_fold_pred_test, pred_test)
+    }
+    
+  }
+  # plot
+  plot(k_fold_pred_test$ABG, k_fold_pred_test$predictions, pch=19, 
+       xlab="Observed ABG (in Mg/ha)", ylab="Predicted ABG (in Mg/ha)", 
+       main= paste("DT K-fold CV (sample size:",samp,')'))
   abline(0,1)
   
   sample_size = samp
@@ -270,10 +333,16 @@ for (samp in s_sizes){
   r2 <-   errors(k_fold_pred_test$ABG, k_fold_pred_test$predictions)$r2
   MEC <-   errors(k_fold_pred_test$ABG, k_fold_pred_test$predictions)$MEC
   
-  rand_samp_cv[nrow(rand_samp_cv) + 1,] <- c(sample_size= sample_size, ME, 
+  rand_samp_cv[nrow(rand_samp_cv) + 1,] <- c(model= 'decision tree',sample_size= sample_size, ME,
                                              RMSE, r2, MEC)
   
+  random_sampling_data_cv <- rbind(random_sampling_data_cv, k_fold_pred_test)
+  remove(k_fold_pred_test)
+  
 }
+
+
+
 
 ##### random forest with cluster sampling #####  
 

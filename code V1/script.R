@@ -780,6 +780,3 @@ ggplot(data = rand_sample[rand_sample$sill <= 10000,], aes(x=sill, y=r2)) +
 ggplot(data = rand_sample[rand_sample$sill <= 10000,], aes(x=sill, y=ME)) + 
   geom_line(aes(colour=as.factor(paste0(model,'-',cv_type)))) +xlab('semi_variance') +
   ggtitle('Random Sample') +  guides(col=guide_legend("model-cv_type"))
-
-
-

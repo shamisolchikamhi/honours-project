@@ -13,7 +13,7 @@ The purpose of this project is to `assess the predictive performance of statisti
 ##### Data.R (optional)
 
 1. Download the data files `feb.zip` and `data.zip` from https://drive.google.com/drive/folders/1lPJkx10lKGL0TtcyfjGTQzL1jIcTKaFV?usp=sharing
-   The two folders contain data fro the covariates. Theya re saved diffeently to enable stacking as they have dufferent extents. 
+   The two folders contain data for the covariates. They are saved differently to enable stacking as they have different extents. 
 2. These folders should be unzipped and saved in their respective folders in the `code V1` folder
 3. The script can be run normmarly to save the raster layers to  `processed_data` that is in the same extent as the biomass data and cropped to the required Congo region
 

@@ -1,5 +1,5 @@
 
-### honours-project
+### Statistics Honours-project
 
 This repository conatins our final year honours project in Statistics;
 `Assessing the Predictive Performance of StatisticalMethods and Machine Learning Algorithms Using Spatial Cross Validation`.
